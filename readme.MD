@@ -60,5 +60,20 @@ The same is true for the application context, but this also means that the <stro
 It is always adviced not to store an activity context reference outside of an activity because that could produce <strong> memory leaks </strong>. 
 
 Why would we need the activity context then? There are use-cases where the activity context is needed. For example, when requesting permissions we would use something like:  
-`ActivityCompat.requestPermissions(<activityContext>, ....)`  
+```
+ActivityCompat.requestPermissions(<activityContext>, ....)
+```  
 this is needed because the OS must show a transparent overlay over our screen in order to ask for permissions. This requires the OS to know about the current activity because the overlay is shown on top of it. The application context, on the other hand, is not connected to the app ui but the app itself which might well be in the bg.
+
+# Resources
+```
+All folders under res 
+```
+
+- `drawable`: everything visual (png, jpeg, vector graphics, svg). In order to use those resources one must be in an env. with access to a context. Then: 
+  ```
+  resources.getDrawable(R.drawable.<resource-name>, <theme>)
+  ```
+- `mipmap`: for the icons of the app
+- `values`: colors, text -> collaction of values used to localize the app for example 
+- `xml`: ignore
