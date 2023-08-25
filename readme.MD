@@ -36,3 +36,29 @@ Model - View - ViewModel is the preferred architectural pattern in Android.
 
 
 # Context
+
+Just an instance of a class. 
+
+```
+Bridge between the android app and the OS. Provides the `context` within which the application operates w.r.t. the OS.
+
+It is usually needed whenever the app must communicate with other system compoonents or other apps:
+    - get access to resources
+    - save files on the FS
+    - launch a different activity
+    - etc..
+```
+
+![context](imgs/context.png)
+As shown in the above picture, both `Activity` and `Application` are subclasses of the `Context` class.
+
+## Activity vs Application Context
+Each context has a specific lifetime.  
+The activity context is active and alive as long as the activity is alive.  
+The same is true for the application context, but this also means that the <strong>application context has a lifetime that is longer than the activity one. </strong>
+
+It is always adviced not to store an activity context reference outside of an activity because that could produce <strong> memory leaks </strong>. 
+
+Why would we need the activity context then? There are use-cases where the activity context is needed. For example, when requesting permissions we would use something like:  
+`ActivityCompat.requestPermissions(<activityContext>, ....)`  
+this is needed because the OS must show a transparent overlay over our screen in order to ask for permissions. This requires the OS to know about the current activity because the overlay is shown on top of it. The application context, on the other hand, is not connected to the app ui but the app itself which might well be in the bg.
