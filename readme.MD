@@ -1,3 +1,8 @@
+# Manifest
+
+```
+It is, in fact, a manifest that exposes capabilities and needs of the app. It is used by the OS to understand what an app can do, the components it consists, the permissions it needs of, etc.
+```
 # Activity
 
 ```
@@ -77,3 +82,99 @@ All folders under res
 - `mipmap`: for the icons of the app
 - `values`: colors, text -> collaction of values used to localize the app for example 
 - `xml`: ignore
+
+# Intents
+```
+An envelop to transfer your intention of your app (called intent) to a different android component.  
+In short: just a way to communicate with a different android component.
+```
+
+There are two type of intents:
+- `explicit`: linked to a specified app that has to be specified within the intent. Ex: launch a specific tab in our own app. Or launch youtube app -> android will launch specifically that app as it is explicitly defined in the intent. Ex:
+    ```kotlin
+    ...
+    {
+        Button(onClick = {
+            Intent(Intent.ACTION_MAIN).also{
+                it.package = "com.google.android.youtube"
+                try {
+                    startActivity(it)
+                } catch (e: ActivityNotFoundException) {
+                    println("The app was not found!")
+                    e.printStackTrace()
+                }
+            }
+        }) {
+            Text(text = "Click me")
+        }
+    }
+    ...
+
+    ```
+- `implicit`: just specify something you want to do. Android will check which app are able to satisfy that action and the user will be prompted to choose which app to use. Ex:
+    ```kotlin
+    ...
+    {
+        Button(onClick = {
+            val intent = Intent(Intent.ACTION_SEND).apply{
+                type = "text/plain"
+                putExtra(Intent.EXTRA_EMAIL, arrayOf("test@test.com"))
+                putExtra(Intent.EXTRA_SUBJECT, "my subject")
+                putExtra(Intent.EXTRA_TEXT, "Content of the email")
+            }
+            if 
+        }) {
+            Text(text = "Click me")
+        }
+    }
+    ...
+
+    ```
+    NOTE: since Android 10 or 11, the intents that an app can launch must be specified in a `<queries>` block in the android manifest:
+    ```xml
+    ...
+    <queries> 
+        <intent> 
+            <action android:name="android.intent.action.SEND">
+            <data android:mimeType="text/plain"/>
+        </intent>
+    </queries>
+    ...
+    ```
+
+    
+To register our app as an app that can resolve some intent we use `intent-filter`. You can specify as many as you want. For example, in order to register our app as candidate to open images:
+```xml
+<intent-filter> 
+    <action android:name="android.intent.action.SEND">
+    <category android:name="android.intent.category.DEFAULT"/>
+    <data android:mimeType="image/*"/>
+</intent-filter>
+
+```
+
+By default the calling app will launc a new instance of our app, even if an instance was already runnig. This does not make much sense. Therefore, it makes sense to specify `android:launchMode="singleTop" ` in the android manifest. In this way, if an instance of the app is running, the OS will use that one. 
+
+Now the calling app packs the image within the intent, but our app must be able to pick that up "parse" the intent for the image and show it. The OS will trigger the function `onNewIntent(intent: Intent?)`, i.e. override this function to do what the app must do with that intent.  Ex:
+```kotlin
+...
+Column(
+    modifier = ...
+    ...
+) {
+    myViewModel.uri?.let{ 
+        AsyncImage( // This comes from 'coil' library
+            model = myViewModel.uri,
+            contentDescription = null
+        )
+    }
+}
+...
+
+
+override fun onNewIntent(intent: Intent?) {
+    super.onNewIntent(intent)
+    val uri = intent?.getParcelableExtra(Intent.EXTRA_STREAM, Uri::class.java)
+    myViewModel.updateUri(uri) // this is ofc an example. The Image composable is updated thru the ViewModel
+}
+```
