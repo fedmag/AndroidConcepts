@@ -241,3 +241,87 @@ There are two ways of registering/unregistering a receiver: dinamically (in code
   ...
 
   ```
+
+# Services
+```
+An android component that does not have a UI and runs in the bg.
+```
+NOTE: there is no guarantee the Android will not kill the service to free up resources.  
+Nowadays mainly foreground services are used, for background tasks, one usually uses the `workManager`.
+
+## Foreground services
+```
+A service of which the user is aware of. Ex: if a music player app is currently playing music.
+```
+In this case we are sure the the OS will not kill the service.
+
+Example of creating a foreground service:
+```kotlin
+class RunningService: Service() {
+    override fun onBind(intent: Intent?): IBinder? {
+        return null  //this means that nothing can communicate with this service
+    }
+
+    // triggered whenever an Intent is sent to this running service
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int { 
+        when(intent?.action) {
+            Actions.START.toString() -> start()
+            Actions.START.toString() -> stopSelf() // stop the service
+        }
+        return super.onStartCommand(intent, flags, startId)
+    }
+
+    private fun start() {
+        // we need a persistent notification in order to have a foreground service
+        val notification = NotificationCompat.Builder(this, "channelID") // channel must be created
+            .setSmallIcon(R.drawable.ic_launcher_foreground)
+            .setContentTitle("Run is active")
+            .setContentText("Elapsed time: 00:50")
+            .build()
+        startForeground(1, notification)
+    }
+
+    enum class Actions {
+        START, STOP
+    }
+}
+```
+
+then also the manifest must be informed (and relevant permission) about such a service:
+```xml 
+<uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
+<uses-permission android:name="android.permission.POST_NOTIFICATION"/>
+<application
+    android:name=".RunningApp"  
+    ...
+    <activity>...</activity>
+    <service android:name=".RunningService" android:foregroundServiceType="dataSync"/> 
+    // there are many more types
+    ...
+/>
+```
+lastly, to activate it we need to launch an intent:
+```kotlin
+
+...
+    Button(onClick = {
+        Intent(applicationContext, RunningService::class.java).also {
+            it.action = RunningService.Actions.START.toString()
+            startService(it)
+        }
+    }) {
+        Text(text = "Start Run")
+    }
+
+    Button(onClick = {
+        Intent(applicationContext, RunningService::class.java).also {
+            it.action = RunningService.Actions.STOP.toString()
+            startService(it)
+        }
+    }) {
+        Text(text = "Stop Run")
+    }
+...
+```
+
+Important note: as long as the service is running all the other activities of the app are working. So keep the service code simple and only use it to communicate with other pieces.
