@@ -178,3 +178,66 @@ override fun onNewIntent(intent: Intent?) {
     myViewModel.updateUri(uri) // this is ofc an example. The Image composable is updated thru the ViewModel
 }
 ```
+
+# Broadcast and Broadcast receiver
+```
+System wide events that the app consumes/sends. These events are sent by apps (including yours) or Android system. 
+To receive these events that app must register itself as broadcast receiver.
+```
+## Receive Broadcast
+Example: once the device is fully booted up, Android will send a broadcast message to all apps that have registered themselves to receive such a message.
+There are two ways of registering/unregistering a receiver: dinamically (in code and as long as the app is running) and statically (thru the manifest):  
+- `Dinamically`: if we neeed to be notified when the phone is put in airplane mode, we would have a class like:
+    ```kotlin
+    class AirplaneModeReceiver: BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            if (intent?.action == Intent.ACTION_AIRPLANE_MODE_CHANGED) {
+                val isTurnedOn = Settings.Global.getInt(
+                    context?.contentResolver,
+                    Settings.Global.AIRPLANE_MODE_ON
+                ) != 0
+                println("Is airplane mode enabled? $isTurnedOn")
+            }
+        }
+    }
+
+    // we also need to REGISTER the receiver in the activity:
+    private val airplaneModeReceiver = AirplaneModeReceiver()
+
+    override fun onCreate(...) {
+        super.onCreate(...)
+        registerReceiver(
+            airplaneModeReceiver, 
+            IntentFilter(Intent.ACTION_AIRPLANE_MODE_CHANGE)
+        )
+    }
+
+    // do not forger to DEREGISTER on destroy
+    override fun onDestroy() {
+        super.onDestroy()
+        unregisterReceiver(airplaneModeReceiver)
+    }
+    ```
+- `statically`: there are only very few exceptions that allow to register a static receiver as, in general, increases battery consumption.
+  ```xml
+  ...
+  <receiver android:name=".AirplaneModeReceiver">
+    <intent-filter>
+        <action> ...
+    </intent-filter>
+  </receiver>
+  ...
+  ```
+
+  ## Send Broadcast
+  Within an activity:
+  ```kotlin
+  ...
+  Button(onClick = {
+    sendBroadcast(
+        Intent("TEST_ACTION")
+    )
+  })
+  ...
+
+  ```
