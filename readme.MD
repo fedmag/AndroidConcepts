@@ -325,3 +325,136 @@ lastly, to activate it we need to launch an intent:
 ```
 
 Important note: as long as the service is running all the other activities of the app are working. So keep the service code simple and only use it to communicate with other pieces.
+
+# WorkManager
+
+```
+Used to accomplish bg tasks in a reliable manner. 
+The user is not necessarily interested in knowing that this processes are running (in contrast to foreground services).
+```
+
+Ex: sync data in the bg.
+
+It makes sense to declare the activity as a single top in the maninfest with `android:launchMode="singleTop".`
+
+```kotlin
+class MainActivity : ComponentActivity() {
+
+    private lateinit var workManager: WorkManager
+    private val photoViewModel = PhotoViewModel()
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        workManager = WorkManager.getInstance(applicationContext)
+
+
+        setContent {
+            MinimalWealthTrackerTheme {
+                // A surface container using the 'background' color from the theme
+                Surface(
+                    modifier = Modifier.fillMaxSize(),
+                    color = MaterialTheme.colorScheme.background
+                ) {
+                    val workerResult = photoViewModel.workId?.let { id ->
+                        workManager.getWorkInfoByIdLiveData(id).observeAsState().value
+                    }
+                    LaunchedEffect(key1 = workerResult?.outputData) {
+                        if (workerResult?.outputData != null) {
+                            val filePath = workerResult.outputData.getString(PhotoCompressionWorker.KEY_RESULT_PATH)
+                            filePath?.let {
+                                val bitmap = BitmapFactory.decodeFile(it)
+                                photoViewModel.updateCompressedBitMap((bitmap))
+                            }
+                        }
+
+                    }
+                    Column {
+                        photoViewModel.uncompressedUri?.let {
+                            Text(text = "Uncompressesd")
+                            AsyncImage(model = it, contenteDescription = null)
+                        }
+                        photoViewModel.uncompressedUri?.let {
+                            Text(text = "Compressed")
+                            Image(model = it.asImageBitmap(), contenteDescription = null)
+                        }
+
+                    }
+                }
+            }
+        }
+    }
+
+    override fun onNewIntent(intent: Intent?) {
+        super.onNewIntent(intent)
+        val uri = if(Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            intent?.getParcelableExtra(Intent.EXTRA_STREAM, Uri::class.java)
+        } else {
+            intent?.getParcelableExtra(Intent.EXTRA_STREAM)
+        } ?: return
+        photoViewModel.updateUncompressedUri(uri) // update the image to be shown
+
+//        val request = PeriodicWorkRequestBuilder<PhotoCompressionWorker>() // for periodic requests
+        val request = OneTimeWorkRequestBuilder<PhotoCompressionWorker>()
+            .setInputData(
+                workDataOf(
+                    PhotoCompressionWorker.KEY_CONTENT_URI to uri,
+                    PhotoCompressionWorker.KEY_COMPRESSION_THRESHOLD to 1024 * 20L
+                )
+            )
+            .setConstraints(Constraints(
+                requiresStorageNotLow = true
+            ))
+            .build()
+        photoViewModel.updateWorkId(request.id)
+        workManager.enqueue(request)
+    }
+}
+
+class PhotoCompressionWorker(
+    private val appContext: Context,
+    private val params: WorkerParameters
+): CoroutineWorker(appContext, params) {
+    override suspend fun doWork(): Result {
+//        setForeground() // only if we want to show something to the user
+        return withContext(Dispatchers.IO) { // run this code on an optimized thread for IO operations
+            val stringUri = params.inputData.getString(KEY_CONTENT_URI)
+            val compressionThresholdInBytes = params.inputData.getLong(
+                KEY_COMPRESSION_THRESHOLD, 0L
+            )
+            val uri = Uri.parse(stringUri)
+            val bytes = appContext.contentResolver.openInputStream(uri)?.use {
+                // use takes care of closing the stream (like with in PY)
+                it.readBytes()
+            } ?: return@withContext Result.failure()
+
+            val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+
+            var outputBytes: ByteArray
+            var quality = 100
+            do {
+                val outputStream = ByteArrayOutputStream()
+                outputStream.use {
+                    bitmap.compress(Bitmap.CompressFormat.JPEG, quality, it)
+                    outputBytes = outputStream.toByteArray()
+                    quality -= (quality * 0.1).roundToInt()
+                }
+            } while (outputBytes.size > compressionThresholdInBytes && quality > 5)
+
+            val file = File(appContext.cacheDir, "${params.id}.jpg")
+            file.writeBytes(outputBytes)
+
+            return@withContext Result.success(workDataOf(
+                KEY_RESULT_PATH to file.absoluteFile
+            ))
+        }
+    }
+
+    companion object {
+        const val KEY_CONTENT_URI = "KEY_CONTENT_URI"
+        const val KEY_COMPRESSION_THRESHOLD = "KEY_COMPRESSION_THRESHOLD"
+        const val KEY_RESULT_PATH = "KEY_RESULT_PATH"
+    }
+}
+
+```
+
